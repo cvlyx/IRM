@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrediTrack | Next-Gen Creditor Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4361ee',
+                        secondary: '#3f37c9',
+                        accent: '#4895ef',
+                        success: '#4ade80',
+                        warning: '#fbbf24',
+                        danger: '#f87171',
+                        info: '#60a5fa',
+                        dark: {
+                            900: '#121826',
+                            800: '#1e293b',
+                            700: '#334155',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #f3f4f6;
+        }
+        
+        .dark body {
+            background-color: #0f172a;
+        }
+        
+        .card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sidebar-link:hover {
+            background-color: rgba(67, 97, 238, 0.1);
+        }
+        
+        .sidebar-link.active {
+            background-color: rgba(67, 97, 238, 0.2);
+            border-left: 3px solid #4361ee;
+        }
+        
+        .notification-dot {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #f87171;
+        }
+        
+        .table-row:hover {
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .dark .table-row:hover {
+            background-color: rgba(67, 97, 238, 0.1);
+        }
+        
+        .risk-badge {
+            transition: all 0.2s ease;
+        }
+        
+        .risk-badge:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body class="h-full" x-data="{ 
+        darkMode: localStorage.getItem('darkMode') === 'true',
+        sidebarOpen: window.innerWidth > 1024,
+        currentView: 'dashboard',
+        notificationsOpen: false,
+        profileMenuOpen: false,
+        notifications: [
+            { id: 1, type: 'new-loan', title: 'New Loan Application', content: 'John Smith applied for a $25,000 loan', time: '10 min ago', read: false },
+            { id: 2, type: 'payment', title: 'Payment Received', content: '$1,250 payment received from Jane Doe', time: '45 min ago', read: false },
+            { id: 3, type: 'reminder', title: 'Reminder Sent', content: 'Payment reminder sent to 5 borrowers', time: '2 hours ago', read: true },
+            { id: 4, type: 'default', title: 'Account Flagged', content: 'Michael Johnson missed payment', time: '4 hours ago', read: true }
+        ],
+        unreadCount: 2,
+        loans: [
+            { id: 'L-10245', borrower: 'John Smith', amount: '$25,000', interest: '8.5%', disbursed: '2023-06-15', due: '2024-06-15', status: 'Active', risk: 'Medium' },
+            { id: 'L-10246', borrower: 'Jane Doe', amount: '$18,500', interest: '7.2%', disbursed: '2023-07-01', due: '2024-07-01', status: 'Active', risk: 'Low' },
+            { id: 'L-10247', borrower: 'Robert Johnson', amount: '$32,000', interest: '9.1%', disbursed: '2023-05-20', due: '2024-05-20', status: 'Active', risk: 'High' },
+            { id: 'L-10248', borrower: 'Emily Chen', amount: '$12,000', interest: '6.8%', disbursed: '2023-08-10', due: '2024-02-10', status: 'Pending', risk: 'Low' },
+            { id: 'L-10249', borrower: 'Michael Brown', amount: '$45,000', interest: '10.2%', disbursed: '2023-04-05', due: '2024-04-05', status: 'Default', risk: 'Critical' }
+        ],
+        borrowers: [
+            { id: 'B-1001', name: 'John Smith', phone: '(555) 123-4567', email: 'john@example.com', loans: 2, rating: 'A', location: 'New York' },
+            { id: 'B-1002', name: 'Jane Doe', phone: '(555) 987-6543', email: 'jane@example.com', loans: 1, rating: 'AA', location: 'San Francisco' },
+            { id: 'B-1003', name: 'Robert Johnson', phone: '(555) 456-7890', email: 'robert@example.com', loans: 3, rating: 'B', location: 'Chicago' },
+            { id: 'B-1004', name: 'Emily Chen', phone: '(555) 234-5678', email: 'emily@example.com', loans: 1, rating: 'A', location: 'Boston' },
+            { id: 'B-1005', name: 'Michael Brown', phone: '(555) 876-5432', email: 'michael@example.com', loans: 2, rating: 'C', location: 'Miami' }
+        ],
+        selectedLoan: null,
+        selectedBorrower: null
+    }" 
+    x-init="
+        $watch('darkMode', value => localStorage.setItem('darkMode', value));
+        if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');
+    "
+    :class="{ 'dark': darkMode }">
+    <div class="flex h-screen bg-gray-50 dark:bg-dark-900">
+        <!-- Mobile sidebar -->
+        <div x-show="sidebarOpen" class="fixed inset-0 z-40 flex lg:hidden" x-cloak>
+            <div class="fixed inset-0 bg-gray-600 bg-opacity-75" @click="sidebarOpen = false"></div>
+            <div class="relative flex flex-col flex-1 w-full max-w-xs bg-white dark:bg-dark-800">
+                <div class="absolute top-0 right-0 pt-2 -mr-12">
+                    <button @click="sidebarOpen = false" class="flex items-center justify-center w-10 h-10 ml-1 rounded-full focus:outline-none" aria-label="Close sidebar">
+                        <i class="text-white text-xl fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+                    <div class="flex items-center flex-shrink-0 px-4">
+                        <div class="flex items-center">
+                            <div class="bg-primary p-2 rounded-lg">
+                                <i class="text-white text-2xl fa-solid fa-landmark"></i>
+                            </div>
+                            <span class="ml-3 text-xl font-bold text-gray-900 dark:text-white">IRM Enterprise</span>
+                        </div>
+                    </div>
+                    <nav class="mt-5 px-2 space-y-1">
+                        <a href="#" @click="currentView = 'dashboard'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'dashboard'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-chart-line mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Dashboard
+                        </a>
+                        <a href="#" @click="currentView = 'loans'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'loans'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-file-invoice-dollar mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Loan Management
+                        </a>
+                        <a href="#" @click="currentView = 'borrowers'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'borrowers'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-users mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Borrower Profiles
+                        </a>
+                        <a href="#" @click="currentView = 'repayments'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'repayments'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-money-bill-transfer mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Repayments & Collections
+                        </a>
+                        <a href="#" @click="currentView = 'analytics'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'analytics'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-chart-pie mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Analytics & Reports
+                        </a>
+                        <a href="#" @click="currentView = 'settings'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'settings'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-gear mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Settings
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <img class="w-10 h-10 rounded-full" src="https://ui-avatars.com/api/?name=Admin+User&background=4361ee&color=fff" alt="Admin User">
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Credit Manager</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Desktop sidebar -->
+        <div class="hidden lg:flex lg:flex-shrink-0">
+            <div class="flex flex-col w-64 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-800">
+                <div class="flex flex-col flex-1 pt-5 pb-4 overflow-y-auto">
+                    <div class="flex items-center flex-shrink-0 px-4">
+                        <div class="flex items-center">
+                            <div class="bg-primary p-2 rounded-lg">
+                                <i class="text-white text-2xl fa-solid fa-landmark"></i>
+                            </div>
+                            <span class="ml-3 text-xl font-bold text-gray-900 dark:text-white">CrediTrack</span>
+                        </div>
+                    </div>
+                    <nav class="mt-5 flex-1 px-2 space-y-1">
+                        <a href="#" @click="currentView = 'dashboard'" :class="{'bg-primary/10 text-primary': currentView === 'dashboard'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-chart-line mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Dashboard
+                        </a>
+                        <a href="#" @click="currentView = 'loans'" :class="{'bg-primary/10 text-primary': currentView === 'loans'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-file-invoice-dollar mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Loan Management
+                        </a>
+                        <a href="#" @click="currentView = 'borrowers'" :class="{'bg-primary/10 text-primary': currentView === 'borrowers'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-users mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Borrower Profiles
+                        </a>
+                        <a href="#" @click="currentView = 'repayments'" :class="{'bg-primary/10 text-primary': currentView === 'repayments'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-money-bill-transfer mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Repayments & Collections
+                        </a>
+                        <a href="#" @click="currentView = 'analytics'" :class="{'bg-primary/10 text-primary': currentView === 'analytics'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-chart-pie mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Analytics & Reports
+                        </a>
+                        <a href="#" @click="currentView = 'settings'" :class="{'bg-primary/10 text-primary': currentView === 'settings'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-gear mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Settings
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <img class="w-10 h-10 rounded-full" src="https://ui-avatars.com/api/?name=Admin+User&background=4361ee&color=fff" alt="Admin User">
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">Admin User</p>
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Credit Manager</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+            <!-- Top navigation -->
+            <div class="relative z-10 flex flex-shrink-0 h-16 bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between w-full px-4">
+                    <div class="flex items-center">
+                        <button @click="sidebarOpen = true" class="px-4 text-gray-500 border-r border-gray-200 dark:border-gray-700 focus:outline-none lg:hidden" aria-label="Open sidebar">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <div class="flex items-center px-4 lg:px-0">
+                            <h1 class="text-lg font-semibold text-gray-900 dark:text-white" x-text="
+                                currentView === 'dashboard' ? 'Dashboard' :
+                                currentView === 'loans' ? 'Loan Management' :
+                                currentView === 'borrowers' ? 'Borrower Profiles' :
+                                currentView === 'repayments' ? 'Repayments & Collections' :
+                                currentView === 'analytics' ? 'Analytics & Reports' : 'Settings'
+                            "></h1>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="darkMode = !darkMode" class="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 focus:outline-none" title="Toggle dark mode">
+                            <i x-show="darkMode" class="fa-solid fa-sun"></i>
+                            <i x-show="!darkMode" class="fa-solid fa-moon"></i>
+                        </button>
+                        
+                        <div class="relative">
+                            <button @click="notificationsOpen = !notificationsOpen" class="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 focus:outline-none" title="View notifications">
+                                <i class="fa-solid fa-bell"></i>
+                                <span x-show="unreadCount > 0" class="notification-dot"></span>
+                            </button>
+                            <div x-show="notificationsOpen" @click.away="notificationsOpen = false" class="absolute right-0 mt-2 w-80 bg-white dark:bg-dark-800 rounded-md shadow-lg overflow-hidden z-20" x-cloak>
+                                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Notifications</h3>
+                                    <p class="text-sm text-gray-500">You have <span x-text="unreadCount" class="font-medium"></span> unread notifications</p>
+                                </div>
+                                <div class="max-h-96 overflow-y-auto">
+                                    <template x-for="notification in notifications">
+                                        <a href="#" @click="if(!notification.read) { notification.read = true; unreadCount--; }" class="block px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-dark-700">
+                                            <div class="flex">
+                                                <div class="flex-shrink-0">
+                                                    <template x-if="notification.type === 'new-loan'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                                                            <i class="fa-solid fa-file-circle-plus"></i>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="notification.type === 'payment'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-green-100 text-green-500">
+                                                            <i class="fa-solid fa-money-bill-wave"></i>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="notification.type === 'reminder'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-yellow-100 text-yellow-500">
+                                                            <i class="fa-solid fa-bell"></i>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="notification.type === 'default'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-red-100 text-red-500">
+                                                            <i class="fa-solid fa-triangle-exclamation"></i>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                                <div class="ml-3">
+                                                    <p class="text-sm font-medium text-gray-900 dark:text-white" x-text="notification.title"></p>
+                                                    <p class="text-sm text-gray-500" x-text="notification.content"></p>
+                                                    <p class="text-xs text-gray-400 mt-1" x-text="notification.time"></p>
+                                                </div>
+                                                <div class="ml-auto" x-show="!notification.read">
+                                                    <span class="h-2 w-2 rounded-full bg-primary"></span>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </template>
+                                </div>
+                                <div class="p-3 bg-gray-50 dark:bg-dark-700 text-center">
+                                    <a href="#" class="text-sm font-medium text-primary hover:text-primary/80">View all notifications</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="relative">
+                            <button @click="profileMenuOpen = !profileMenuOpen" class="flex text-sm rounded-full focus:outline-none">
+                                <img class="w-8 h-8 rounded-full" src="https://ui-avatars.com/api/?name=Admin+User&background=4361ee&color=fff" alt="Admin User">
+                            </button>
+                            <div x-show="profileMenuOpen" @click.away="profileMenuOpen = false" class="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-800 rounded-md shadow-lg py-1 z-20" x-cloak>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700">Your Profile</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700">Settings</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700">Logout</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main content -->
+            <main class="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-dark-900">
+                <!-- Dashboard View -->
+                <div x-show="currentView === 'dashboard'">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <!-- KPI Cards -->
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                                    <i class="fa-solid fa-sack-dollar text-blue-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Outstanding Principal</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">$2.84M</p>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-green-500 font-medium"><i class="fa-solid fa-arrow-up mr-1"></i> 3.2%</span>
+                                    <span class="text-gray-500 dark:text-gray-400">vs last month</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                                    <i class="fa-solid fa-file-contract text-green-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Loans</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">342</p>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-green-500 font-medium"><i class="fa-solid fa-arrow-up mr-1"></i> 8.7%</span>
+                                    <span class="text-gray-500 dark:text-gray-400">vs last month</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                    <i class="fa-solid fa-triangle-exclamation text-yellow-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Delinquency Rate</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">4.8%</p>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-red-500 font-medium"><i class="fa-solid fa-arrow-up mr-1"></i> 1.1%</span>
+                                    <span class="text-gray-500 dark:text-gray-400">vs last month</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                                    <i class="fa-solid fa-percent text-purple-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Avg. Interest Rate</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">8.2%</p>
+                                </div>
+                            </div>
+                            <div class="mt-4">
+                                <div class="flex items-center justify-between text-sm">
+                                    <span class="text-green-500 font-medium"><i class="fa-solid fa-arrow-down mr-1"></i> 0.3%</span>
+                                    <span class="text-gray-500 dark:text-gray-400">vs last month</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Loan Disbursements Chart -->
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Monthly Loan Disbursements</h2>
+                                <div class="flex space-x-2">
+                                    <button class="text-xs px-3 py-1 bg-gray-100 dark:bg-dark-700 rounded-lg">Month</button>
+                                    <button class="text-xs px-3 py-1 bg-primary text-white rounded-lg">Quarter</button>
+                                    <button class="text-xs px-3 py-1 bg-gray-100 dark:bg-dark-700 rounded-lg">Year</button>
+                                </div>
+                            </div>
+                            <div class="h-80">
+                                <canvas id="disbursementChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Repayment Progress Chart -->
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Repayment Progress</h2>
+                            <div class="flex items-center justify-center h-80">
+                                <div class="w-64 h-64">
+                                    <canvas id="repaymentChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 gap-6">
+                        <!-- Recent Activity & Top Defaulters -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Recent Activity -->
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                                <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Activity</h2>
+                                <div class="space-y-4">
+                                    <div class="flex items-start">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-10 h-10 flex items-center justify-center rounded-full bg-green-100 text-green-500">
+                                                <i class="fa-solid fa-check"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">Loan Approved</p>
+                                            <p class="text-sm text-gray-500">Loan L-10248 for $12,000 was approved</p>
+                                            <p class="text-xs text-gray-400 mt-1">10 minutes ago</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-start">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-10 h-10 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                                                <i class="fa-solid fa-arrow-down"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">Payment Received</p>
+                                            <p class="text-sm text-gray-500">$1,250 payment received for loan L-10246</p>
+                                            <p class="text-xs text-gray-400 mt-1">45 minutes ago</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-start">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-10 h-10 flex items-center justify-center rounded-full bg-yellow-100 text-yellow-500">
+                                                <i class="fa-solid fa-bell"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">Reminder Sent</p>
+                                            <p class="text-sm text-gray-500">Payment reminders sent to 5 borrowers</p>
+                                            <p class="text-xs text-gray-400 mt-1">2 hours ago</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex items-start">
+                                        <div class="flex-shrink-0">
+                                            <div class="w-10 h-10 flex items-center justify-center rounded-full bg-red-100 text-red-500">
+                                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                            </div>
+                                        </div>
+                                        <div class="ml-3">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white">Account Flagged</p>
+                                            <p class="text-sm text-gray-500">Michael Johnson missed payment for loan L-10249</p>
+                                            <p class="text-xs text-gray-400 mt-1">4 hours ago</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mt-4 text-center">
+                                    <a href="#" class="text-sm font-medium text-primary hover:text-primary/80">View all activity</a>
+                                </div>
+                            </div>
+                            
+                            <!-- Top Defaulters -->
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Top Defaulters</h2>
+                                    <button class="text-sm text-primary font-medium">View All</button>
+                                </div>
+                                <div class="overflow-hidden">
+                                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Borrower</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Days Late</th>
+                                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount Due</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                            <tr class="table-row">
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="flex-shrink-0 h-10 w-10">
+                                                            <img class="h-10 w-10 rounded-full" src="https://ui-avatars.com/api/?name=Michael+Brown&background=f87171&color=fff" alt="Michael Brown">
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900 dark:text-white">Michael Brown</div>
+                                                            <div class="text-sm text-gray-500">L-10249</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">$45,000</td>
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">32 days</span>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">$3,780</td>
+                                            </tr>
+                                            
+                                            <tr class="table-row">
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="flex-shrink-0 h-10 w-10">
+                                                            <img class="h-10 w-10 rounded-full" src="https://ui-avatars.com/api/?name=Robert+Johnson&background=fbbf24&color=000" alt="Robert Johnson">
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900 dark:text-white">Robert Johnson</div>
+                                                            <div class="text-sm text-gray-500">L-10247</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">$32,000</td>
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">14 days</span>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">$2,450</td>
+                                            </tr>
+                                            
+                                            <tr class="table-row">
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="flex-shrink-0 h-10 w-10">
+                                                            <img class="h-10 w-10 rounded-full" src="https://ui-avatars.com/api/?name=Sarah+Williams&background=f87171&color=fff" alt="Sarah Williams">
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900 dark:text-white">Sarah Williams</div>
+                                                            <div class="text-sm text-gray-500">L-10251</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">$15,500</td>
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">8 days</span>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">$1,220</td>
+                                            </tr>
+                                            
+                                            <tr class="table-row">
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="flex-shrink-0 h-10 w-10">
+                                                            <img class="h-10 w-10 rounded-full" src="https://ui-avatars.com/api/?name=David+Miller&background=fbbf24&color=000" alt="David Miller">
+                                                        </div>
+                                                        <div class="ml-4">
+                                                            <div class="text-sm font-medium text-gray-900 dark:text-white">David Miller</div>
+                                                            <div class="text-sm text-gray-500">L-10253</div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">$22,000</td>
+                                                <td class="px-4 py-3 whitespace-nowrap">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">5 days</span>
+                                                </td>
+                                                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">$1,850</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Loan Management View -->
+                <div x-show="currentView === 'loans'" x-cloak>
+                    <div class="mb-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Loan Portfolio</h2>
+                        <button class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center">
+                            <i class="fa-solid fa-plus mr-2"></i> New Loan
+                        </button>
+                    </div>
+                    
+                    <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm mb-6">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div class="flex-1">
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                                    </div>
+                                    <input type="text" class="pl-10 w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white" placeholder="Search loans...">
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <select aria-label="Filter by loan status" class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                    <option>All Status</option>
+                                    <option>Active</option>
+                                    <option>Pending</option>
+                                    <option>Default</option>
+                                    <option>Paid</option>
+                                </select>
+                                <select aria-label="Filter by risk level" class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                    <option>All Risk Levels</option>
+                                    <option>Low</option>
+                                    <option>Medium</option>
+                                    <option>High</option>
+                                    <option>Critical</option>
+                                </select>
+                                <button class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 flex items-center">
+                                    <i class="fa-solid fa-filter mr-2"></i> Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-white dark:bg-dark-800 rounded-xl shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-dark-700">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Borrower</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Principal</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Interest</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Disbursed</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Due Date</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Risk</th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-dark-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    <template x-for="loan in loans" :key="loan.id">
+                                        <tr class="table-row">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white" x-text="loan.id"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white" x-text="loan.borrower"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white" x-text="loan.amount"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white" x-text="loan.interest"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="loan.disbursed"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="loan.due"></td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <template x-if="loan.status === 'Active'">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Active</span>
+                                                </template>
+                                                <template x-if="loan.status === 'Pending'">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                                                </template>
+                                                <template x-if="loan.status === 'Default'">
+                                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Default</span>
+                                                </template>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <template x-if="loan.risk === 'Low'">
+                                                    <span class="risk-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Low</span>
+                                                </template>
+                                                <template x-if="loan.risk === 'Medium'">
+                                                    <span class="risk-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Medium</span>
+                                                </template>
+                                                <template x-if="loan.risk === 'High'">
+                                                    <span class="risk-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">High</span>
+                                                </template>
+                                                <template x-if="loan.risk === 'Critical'">
+                                                    <span class="risk-badge px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Critical</span>
+                                                </template>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                <button @click="selectedLoan = loan" class="text-primary hover:text-primary/80 mr-3">
+                                                    <i class="fa-solid fa-eye"></i>
+                                                </button>
+                                                <button class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                                    <i class="fa-solid fa-pen-to-square"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="px-6 py-4 bg-gray-50 dark:bg-dark-700 border-t border-gray-200 dark:border-gray-700">
+                            <div class="flex items-center justify-between">
+                                <div class="text-sm text-gray-700 dark:text-gray-300">
+                                    Showing <span class="font-medium">1</span> to <span class="font-medium">5</span> of <span class="font-medium">342</span> loans
+                                </div>
+                                <div class="flex space-x-2">
+                                    <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-300">
+                                        Previous
+                                    </button>
+                                    <button class="px-3 py-1 rounded border border-primary bg-primary text-white">
+                                        1
+                                    </button>
+                                    <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-300">
+                                        2
+                                    </button>
+                                    <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-300">
+                                        3
+                                    </button>
+                                    <button class="px-3 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-gray-700 dark:text-gray-300">
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Borrower Profiles View -->
+                <div x-show="currentView === 'borrowers'" x-cloak>
+                    <div class="mb-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Borrower Management</h2>
+                        <button class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center">
+                            <i class="fa-solid fa-plus mr-2"></i> New Borrower
+                        </button>
+                    </div>
+                    
+                    <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm mb-6">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div class="flex-1">
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                                    </div>
+                                    <input type="text" class="pl-10 w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white" placeholder="Search borrowers...">
+                                </div>
+                            </div>
+                            <div class="flex space-x-2">
+                                <select title="Filter by credit rating" class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                    <option>All Ratings</option>
+                                    <option>AA</option>
+                                    <option>A</option>
+                                    <option>B</option>
+                                    <option>C</option>
+                                </select>
+                                <select title="Filter by location" class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                    <option>All Locations</option>
+                                    <option>New York</option>
+                                    <option>San Francisco</option>
+                                    <option>Chicago</option>
+                                    <option>Miami</option>
+                                </select>
+                                <button class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 flex items-center">
+                                    <i class="fa-solid fa-filter mr-2"></i> Filter
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <template x-for="borrower in borrowers" :key="borrower.id">
+                            <div class="card bg-white dark:bg-dark-800 rounded-xl shadow-sm overflow-hidden">
+                                <div class="p-6">
+                                    <div class="flex items-center">
+                                        <img class="w-16 h-16 rounded-full" :src="`https://ui-avatars.com/api/?name=${borrower.name}&background=random`" :alt="borrower.name">
+                                        <div class="ml-4">
+                                            <h3 class="text-lg font-bold text-gray-900 dark:text-white" x-text="borrower.name"></h3>
+                                            <p class="text-sm text-gray-500" x-text="borrower.location"></p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-4 grid grid-cols-2 gap-4">
+                                        <div>
+                                            <p class="text-sm text-gray-500">Credit Rating</p>
+                                            <template x-if="borrower.rating === 'AA'">
+                                                <span class="text-lg font-bold text-green-600">AA</span>
+                                            </template>
+                                            <template x-if="borrower.rating === 'A'">
+                                                <span class="text-lg font-bold text-blue-600">A</span>
+                                            </template>
+                                            <template x-if="borrower.rating === 'B'">
+                                                <span class="text-lg font-bold text-yellow-600">B</span>
+                                            </template>
+                                            <template x-if="borrower.rating === 'C'">
+                                                <span class="text-lg font-bold text-red-600">C</span>
+                                            </template>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-500">Active Loans</p>
+                                            <p class="text-lg font-bold text-gray-900 dark:text-white" x-text="borrower.loans"></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-500">Phone</p>
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white" x-text="borrower.phone"></p>
+                                        </div>
+                                        <div>
+                                            <p class="text-sm text-gray-500">Email</p>
+                                            <p class="text-sm font-medium text-gray-900 dark:text-white truncate" x-text="borrower.email"></p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mt-6">
+                                        <div class="flex items-center justify-between">
+                                            <div>
+                                                <p class="text-sm text-gray-500">Risk Level</p>
+                                                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 mt-1">
+                                                    <template x-if="borrower.rating === 'AA'">
+                                                        <div class="bg-green-500 h-2 rounded-full" style="width: 10%"></div>
+                                                    </template>
+                                                    <template x-if="borrower.rating === 'A'">
+                                                        <div class="bg-blue-500 h-2 rounded-full" style="width: 30%"></div>
+                                                    </template>
+                                                    <template x-if="borrower.rating === 'B'">
+                                                        <div class="bg-yellow-500 h-2 rounded-full" style="width: 60%"></div>
+                                                    </template>
+                                                    <template x-if="borrower.rating === 'C'">
+                                                        <div class="bg-red-500 h-2 rounded-full" style="width: 90%"></div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                            <button @click="selectedBorrower = borrower" class="text-primary hover:text-primary/80">
+                                                View Profile
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 dark:bg-dark-700 px-6 py-3 flex justify-end">
+                                    <button class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 mr-4">
+                                        <i class="fa-solid fa-envelope"></i>
+                                    </button>
+                                    <button class="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                                        <i class="fa-solid fa-phone"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    
+                    <div class="mt-6 flex justify-center">
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                            <a href="#" class="relative inline-flex items-center px-4 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-700">
+                                Previous
+                            </a>
+                            <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-primary text-white text-sm font-medium">
+                                1
+                            </a>
+                            <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-700">
+                                2
+                            </a>
+                            <a href="#" class="relative inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-700">
+                                3
+                            </a>
+                            <a href="#" class="relative inline-flex items-center px-4 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-dark-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-700">
+                                Next
+                            </a>
+                        </nav>
+                    </div>
+                </div>
+                
+                <!-- Other views would go here -->
+            </main>
+        </div>
+    </div>
+
+    <script>
+        // Initialize charts
+        document.addEventListener('DOMContentLoaded', function() {
+            // Loan Disbursements Chart
+            const disbursementCtx = document.getElementById('disbursementChart').getContext('2d');
+            const disbursementChart = new Chart(disbursementCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: 'Disbursements ($)',
+                        data: [420000, 380000, 510000, 480000, 550000, 610000, 650000, 720000, 680000, 750000, 790000, 850000],
+                        borderColor: '#4361ee',
+                        backgroundColor: 'rgba(67, 97, 238, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 4,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            padding: 10,
+                            titleFont: {
+                                size: 14
+                            },
+                            bodyFont: {
+                                size: 13
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + (value / 1000) + 'k';
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Repayment Progress Chart
+            const repaymentCtx = document.getElementById('repaymentChart').getContext('2d');
+            const repaymentChart = new Chart(repaymentCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Paid', 'Pending', 'Overdue'],
+                    datasets: [{
+                        data: [75, 20, 5],
+                        backgroundColor: ['#4ade80', '#fbbf24', '#f87171'],
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 13
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            padding: 10,
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.parsed + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

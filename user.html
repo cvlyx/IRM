@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrediTrack | Borrower Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#4361ee',
+                        secondary: '#3f37c9',
+                        accent: '#4895ef',
+                        success: '#4ade80',
+                        warning: '#fbbf24',
+                        danger: '#f87171',
+                        info: '#60a5fa',
+                        dark: {
+                            900: '#121826',
+                            800: '#1e293b',
+                            700: '#334155',
+                        },
+                        malawi: {
+                            green: '#339e35',
+                            red: '#ce1126',
+                            black: '#000000'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background-color: #f3f4f6;
+        }
+        
+        .dark body {
+            background-color: #0f172a;
+        }
+        
+        .card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sidebar-link:hover {
+            background-color: rgba(67, 97, 238, 0.1);
+        }
+        
+        .sidebar-link.active {
+            background-color: rgba(67, 97, 238, 0.2);
+            border-left: 3px solid #4361ee;
+        }
+        
+        .notification-dot {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #f87171;
+        }
+        
+        .table-row:hover {
+            background-color: rgba(67, 97, 238, 0.05);
+        }
+        
+        .dark .table-row:hover {
+            background-color: rgba(67, 97, 238, 0.1);
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #4361ee 0%, #3f37c9 100%);
+        }
+        
+        .loan-progress {
+            height: 8px;
+            border-radius: 4px;
+        }
+        
+        .loan-progress::-webkit-progress-bar {
+            background-color: #e5e7eb;
+            border-radius: 4px;
+        }
+        
+        .loan-progress::-webkit-progress-value {
+            background-color: #4361ee;
+            border-radius: 4px;
+        }
+        
+        .offer-card {
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .offer-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.15);
+        }
+        
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .quick-action-card {
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .quick-action-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px -5px rgba(67, 97, 238, 0.2);
+        }
+        
+        .malawi-flag-bg {
+            background: linear-gradient(to bottom, #000000 33%, #ce1126 33%, #ce1126 66%, #339e35 66%);
+        }
+    </style>
+</head>
+<body class="h-full" x-data="{ 
+        darkMode: localStorage.getItem('darkMode') === 'true',
+        sidebarOpen: window.innerWidth > 1024,
+        currentView: 'dashboard',
+        notificationsOpen: false,
+        profileMenuOpen: false,
+        loanApplicationOpen: false,
+        showPaymentModal: false,
+        paymentAmount: '',
+        paymentMethod: 'Airtel Money',
+        profileEditMode: false,
+        userProfile: {
+            name: 'John Banda',
+            phone: '+265 991 234 567',
+            email: 'john.banda@example.com',
+            address: 'Lilongwe, Area 3',
+            occupation: 'Business Owner',
+            idType: 'National ID',
+            idNumber: 'MW12345678',
+            creditScore: 720
+        },
+        loanAmount: 50000,
+        loanTerm: 6,
+        loanPurpose: 'Business',
+        loanStatusFilter: 'all',
+        notifications: [
+            { id: 1, type: 'payment', title: 'Payment Due', content: 'Payment of MK15,000 due in 3 days', time: 'Today', read: false },
+            { id: 2, type: 'approval', title: 'Loan Approved', content: 'Your loan of MK50,000 has been approved', time: '2 days ago', read: true },
+            { id: 3, type: 'offer', title: 'Special Offer', content: 'Limited time: Get 1% lower interest rate', time: '5 days ago', read: true }
+        ],
+        unreadCount: 1,
+        loans: [
+            { id: 'L-10245', amount: 'MK50,000', interest: '15%', disbursed: '2023-06-15', due: '2023-12-15', status: 'active', nextPayment: 'MK15,000', nextPaymentDate: '2023-09-15', paid: 30, total: 100 },
+            { id: 'L-10246', amount: 'MK25,000', interest: '12%', disbursed: '2023-07-01', due: '2024-01-01', status: 'pending', nextPayment: 'MK7,500', nextPaymentDate: '2023-10-01', paid: 0, total: 100 },
+            { id: 'L-10247', amount: 'MK75,000', interest: '18%', disbursed: '2023-05-20', due: '2023-11-20', status: 'overdue', nextPayment: 'MK22,500', nextPaymentDate: '2023-08-20', paid: 60, total: 100 },
+            { id: 'L-10248', amount: 'MK100,000', interest: '20%', disbursed: '2023-04-05', due: '2024-04-05', status: 'repaid', nextPayment: 'MK0', nextPaymentDate: 'N/A', paid: 100, total: 100 }
+        ],
+        specialOffers: [
+            { id: 1, title: 'Business Boost', description: 'Special 12% rate for business loans', icon: 'fa-solid fa-briefcase', amount: 'Up to MK500,000', deadline: '2023-10-31' },
+            { id: 2, title: 'Education Support', description: 'Low-interest student loans', icon: 'fa-solid fa-graduation-cap', amount: 'Up to MK300,000', deadline: '2023-12-15' },
+            { id: 3, title: 'Agricultural Loan', description: 'Seasonal farming loans with flexible repayment', icon: 'fa-solid fa-tractor', amount: 'Up to MK1,000,000', deadline: '2023-11-30' }
+        ],
+        paymentMethods: [
+            { id: 1, name: 'Airtel Money', icon: 'fa-solid fa-mobile-screen' },
+            { id: 2, name: 'TNM Mpamba', icon: 'fa-solid fa-mobile' },
+            { id: 3, name: 'Standard Bank', icon: 'fa-solid fa-building-columns' },
+            { id: 4, name: 'National Bank', icon: 'fa-solid fa-landmark' },
+            { id: 5, name: 'Cash', icon: 'fa-solid fa-money-bill-wave' }
+        ]
+    }" 
+    x-init="
+        $watch('darkMode', value => localStorage.setItem('darkMode', value));
+        if (localStorage.getItem('darkMode') === 'true') document.documentElement.classList.add('dark');
+    "
+    :class="{ 'dark': darkMode }">
+    <div class="flex h-screen bg-gray-50 dark:bg-dark-900">
+    <!-- Mobile sidebar -->
+    <div x-show="sidebarOpen" x-cloak class="fixed inset-0 flex z-40 lg:hidden">
+        <div class="fixed inset-0 bg-gray-600 bg-opacity-75" @click="sidebarOpen = false" aria-hidden="true"></div>
+        <div class="relative flex-1 flex flex-col max-w-xs w-full bg-white dark:bg-dark-800">
+            <div class="absolute top-0 right-0 -mr-12 pt-2">
+                <button @click="sidebarOpen = false" class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:bg-gray-200 dark:focus:bg-dark-700">
+                    <span class="sr-only">Close sidebar</span>
+                    <i class="fa-solid fa-xmark text-gray-700 dark:text-gray-300 text-2xl"></i>
+                </button>
+            </div>
+            <div class="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
+                <div class="flex items-center flex-shrink-0 px-4">
+                    <div class="flex items-center">
+                        <div class="bg-primary p-2 rounded-lg">
+                            <i class="text-white text-2xl fa-solid fa-landmark"></i>
+                        </div>
+                        <span class="ml-3 text-xl font-bold text-gray-900 dark:text-white">IRM Enterprise</span>
+                    </div>
+                </div>
+                <nav class="mt-5 px-2 space-y-1">
+                    <a href="#" @click="currentView = 'dashboard'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'dashboard'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                        <i class="fa-solid fa-chart-line mr-3 text-gray-500 group-hover:text-primary"></i>
+                        Dashboard
+                    </a>
+                    <a href="#" @click="currentView = 'loans'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'loans'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                        <i class="fa-solid fa-file-invoice-dollar mr-3 text-gray-500 group-hover:text-primary"></i>
+                        My Loans
+                    </a>
+                    <a href="#" @click="currentView = 'payback'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'payback'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                        <i class="fa-solid fa-money-bill-transfer mr-3 text-gray-500 group-hover:text-primary"></i>
+                        Payback
+                    </a>
+                    <a href="#" @click="currentView = 'offers'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'offers'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                        <i class="fa-solid fa-gift mr-3 text-gray-500 group-hover:text-primary"></i>
+                        Special Offers
+                    </a>
+                    <a href="#" @click="currentView = 'profile'; sidebarOpen = false" :class="{'bg-primary/10 text-primary': currentView === 'profile'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                        <i class="fa-solid fa-user mr-3 text-gray-500 group-hover:text-primary"></i>
+                        My Profile
+                    </a>
+                </nav>
+            </div>
+            <div class="flex-shrink-0 flex border-t border-gray-200 dark:border-gray-700 p-4">
+                <div class="flex-shrink-0">
+                    <img class="w-10 h-10 rounded-full" src="https://ui-avatars.com/api/?name=John+Banda&background=4361ee&color=fff" alt="John Banda">
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm font-medium text-gray-900 dark:text-white">John Banda</p>
+                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Borrower</p>
+                </div>
+            </div>
+        </div>
+        <div class="flex-shrink-0 w-14" aria-hidden="true"></div>
+    </div>
+        <!-- Desktop sidebar -->
+        <div class="hidden lg:flex lg:flex-shrink-0">
+            <div class="flex flex-col w-64 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-800">
+                <div class="flex flex-col flex-1 pt-5 pb-4 overflow-y-auto">
+                    <div class="flex items-center flex-shrink-0 px-4">
+                        <div class="flex items-center">
+                            <div class="bg-primary p-2 rounded-lg">
+                                <i class="text-white text-2xl fa-solid fa-landmark"></i>
+                            </div>
+                            <span class="ml-3 text-xl font-bold text-gray-900 dark:text-white">IRM Enterprise</span>
+                        </div>
+                    </div>
+                    <nav class="mt-5 flex-1 px-2 space-y-1">
+                        <a href="#" @click="currentView = 'dashboard'" :class="{'bg-primary/10 text-primary': currentView === 'dashboard'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-chart-line mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Dashboard
+                        </a>
+                        <a href="#" @click="currentView = 'loans'" :class="{'bg-primary/10 text-primary': currentView === 'loans'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-file-invoice-dollar mr-3 text-gray-500 group-hover:text-primary"></i>
+                            My Loans
+                        </a>
+                        <a href="#" @click="currentView = 'payback'" :class="{'bg-primary/10 text-primary': currentView === 'payback'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-money-bill-transfer mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Payback
+                        </a>
+                        <a href="#" @click="currentView = 'offers'" :class="{'bg-primary/10 text-primary': currentView === 'offers'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-gift mr-3 text-gray-500 group-hover:text-primary"></i>
+                            Special Offers
+                        </a>
+                        <a href="#" @click="currentView = 'profile'" :class="{'bg-primary/10 text-primary': currentView === 'profile'}" class="sidebar-link flex items-center px-4 py-3 text-base font-medium rounded-lg group">
+                            <i class="fa-solid fa-user mr-3 text-gray-500 group-hover:text-primary"></i>
+                            My Profile
+                        </a>
+                    </nav>
+                </div>
+                <div class="p-4 border-t border-gray-200 dark:border-gray-700">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0">
+                            <img class="w-10 h-10 rounded-full" src="https://ui-avatars.com/api/?name=John+Banda&background=4361ee&color=fff" alt="John Banda">
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm font-medium text-gray-900 dark:text-white">John Banda</p>
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Borrower</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex flex-col flex-1 min-w-0 overflow-hidden">
+            <!-- Top navigation -->
+            <div class="relative z-10 flex flex-shrink-0 h-16 bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex justify-between w-full px-4">
+                    <div class="flex items-center">
+                        <button @click="sidebarOpen = true" class="px-4 text-gray-500 border-r border-gray-200 dark:border-gray-700 focus:outline-none lg:hidden" aria-label="Open sidebar">
+                            <i class="fa-solid fa-bars"></i>
+                        </button>
+                        <div class="flex items-center px-4 lg:px-0">
+                            <h1 class="text-lg font-semibold text-gray-900 dark:text-white" x-text="
+                                currentView === 'dashboard' ? 'Dashboard' :
+                                currentView === 'loans' ? 'My Loans' :
+                                currentView === 'payback' ? 'Payback' :
+                                currentView === 'offers' ? 'Special Offers' : 
+                                currentView === 'profile' ? 'My Profile' : 'Dashboard'
+                            "></h1>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button @click="darkMode = !darkMode" class="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 focus:outline-none" aria-label="Toggle dark mode" title="Toggle dark mode">
+                            <i x-show="darkMode" class="fa-solid fa-sun"></i>
+                            <i x-show="!darkMode" class="fa-solid fa-moon"></i>
+                        </button>
+                        
+                        <div class="relative">
+                            <button @click="notificationsOpen = !notificationsOpen" class="p-2 text-gray-500 rounded-full hover:bg-gray-100 dark:hover:bg-dark-700 focus:outline-none" aria-label="Open notifications">
+                                <i class="fa-solid fa-bell"></i>
+                                <span x-show="unreadCount > 0" class="notification-dot"></span>
+                            </button>
+                            <div x-show="notificationsOpen" @click.away="notificationsOpen = false" class="absolute right-0 mt-2 w-80 bg-white dark:bg-dark-800 rounded-md shadow-lg overflow-hidden z-20" x-cloak>
+                                <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+                                    <h3 class="text-lg font-medium text-gray-900 dark:text-white">Notifications</h3>
+                                    <p class="text-sm text-gray-500">You have <span x-text="unreadCount" class="font-medium"></span> unread notifications</p>
+                                </div>
+                                <div class="max-h-96 overflow-y-auto">
+                                    <template x-for="notification in notifications">
+                                        <a href="#" @click="if(!notification.read) { notification.read = true; unreadCount--; }" class="block px-4 py-3 border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-dark-700">
+                                            <div class="flex">
+                                                <div class="flex-shrink-0">
+                                                    <template x-if="notification.type === 'payment'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-blue-100 text-blue-500">
+                                                            <i class="fa-solid fa-money-bill-wave"></i>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="notification.type === 'approval'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-green-100 text-green-500">
+                                                            <i class="fa-solid fa-check"></i>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="notification.type === 'offer'">
+                                                        <div class="w-10 h-10 flex items-center justify-center rounded-full bg-yellow-100 text-yellow-500">
+                                                            <i class="fa-solid fa-gift"></i>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                                <div class="ml-3">
+                                                    <p class="text-sm font-medium text-gray-900 dark:text-white" x-text="notification.title"></p>
+                                                    <p class="text-sm text-gray-500" x-text="notification.content"></p>
+                                                    <p class="text-xs text-gray-400 mt-1" x-text="notification.time"></p>
+                                                </div>
+                                                <div class="ml-auto" x-show="!notification.read">
+                                                    <span class="h-2 w-2 rounded-full bg-primary"></span>
+                                                </div>
+                                            </div>
+                                        </a>
+                                    </template>
+                                </div>
+                                <div class="p-3 bg-gray-50 dark:bg-dark-700 text-center">
+                                    <a href="#" class="text-sm font-medium text-primary hover:text-primary/80">View all notifications</a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="relative">
+                            <button @click="profileMenuOpen = !profileMenuOpen" class="flex text-sm rounded-full focus:outline-none">
+                                <img class="w-8 h-8 rounded-full" src="https://ui-avatars.com/api/?name=John+Banda&background=4361ee&color=fff" alt="John Banda">
+                            </button>
+                            <div x-show="profileMenuOpen" @click.away="profileMenuOpen = false" class="absolute right-0 mt-2 w-48 bg-white dark:bg-dark-800 rounded-md shadow-lg py-1 z-20" x-cloak>
+                                <a href="#" @click="currentView = 'profile'" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700">Your Profile</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700">Settings</a>
+                                <a href="#" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700">Logout</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main content -->
+            <main class="flex-1 overflow-y-auto p-6 bg-gray-50 dark:bg-dark-900">
+                <!-- Dashboard View -->
+                <div x-show="currentView === 'dashboard'">
+                    <!-- Welcome Banner -->
+                    <div class="gradient-bg rounded-xl p-6 mb-6 text-white">
+                        <div class="flex flex-col md:flex-row md:items-center justify-between">
+                            <div>
+                                <h1 class="text-2xl font-bold">Welcome back, John!</h1>
+                                <p class="opacity-90 mt-2">Manage your loans and payments easily</p>
+                            </div>
+                            <button @click="loanApplicationOpen = true" class="mt-4 md:mt-0 bg-white text-primary px-6 py-2 rounded-lg font-medium hover:bg-white/90">
+                                Apply for New Loan
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                                    <i class="fa-solid fa-wallet text-blue-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Balance</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">MK150,000</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-green-100 dark:bg-green-900/30">
+                                    <i class="fa-solid fa-check-circle text-green-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Completed Loans</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">2</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
+                                    <i class="fa-solid fa-clock text-yellow-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Applied Loans</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">1</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center">
+                                <div class="p-3 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                                    <i class="fa-solid fa-file-invoice-dollar text-purple-500 text-xl"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Active Loans</p>
+                                    <p class="text-2xl font-bold text-gray-900 dark:text-white">3</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- QUICK ACTIONS SECTION -->
+                    <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm mb-6">
+                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Quick Actions</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <button @click="showPaymentModal = true" class="quick-action-card flex flex-col items-center justify-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary">
+                                <div class="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center text-green-500 mb-2">
+                                    <i class="fa-solid fa-money-bill-transfer text-xl"></i>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">Make Payment</span>
+                            </button>
+                            
+                            <button @click="currentView = 'loans'" class="quick-action-card flex flex-col items-center justify-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary">
+                                <div class="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center text-blue-500 mb-2">
+                                    <i class="fa-solid fa-file-invoice-dollar text-xl"></i>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">View Loans</span>
+                            </button>
+                            
+                            <button @click="loanApplicationOpen = true" class="quick-action-card flex flex-col items-center justify-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary">
+                                <div class="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center text-purple-500 mb-2">
+                                    <i class="fa-solid fa-hand-holding-usd text-xl"></i>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">Apply for Loan</span>
+                            </button>
+                            
+                            <button @click="currentView = 'offers'" class="quick-action-card flex flex-col items-center justify-center p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary">
+                                <div class="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center text-yellow-500 mb-2">
+                                    <i class="fa-solid fa-gift text-xl"></i>
+                                </div>
+                                <span class="text-sm font-medium text-gray-900 dark:text-white">Special Offers</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Payment Schedule Chart -->
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Payment Schedule</h2>
+                                <button class="text-xs px-3 py-1 bg-gray-100 dark:bg-dark-700 rounded-lg">Month</button>
+                            </div>
+                            <div class="h-80">
+                                <canvas id="paymentChart"></canvas>
+                            </div>
+                        </div>
+                        
+                        <!-- Loan Progress Chart -->
+                        <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Loan Progress</h2>
+                            <div class="space-y-6">
+                                <template x-for="loan in loans.filter(l => l.status !== 'repaid')" :key="loan.id">
+                                    <div>
+                                        <div class="flex justify-between mb-2">
+                                            <span class="text-sm font-medium text-gray-900 dark:text-white" x-text="'Loan ' + loan.id"></span>
+                                            <span class="text-sm text-gray-500" x-text="loan.paid + '% paid'"></span>
+                                        </div>
+                                        <progress class="loan-progress w-full" :value="loan.paid" max="100"></progress>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Special Offers Section -->
+                    <div class="mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Special Offers</h2>
+                            <a href="#" @click="currentView = 'offers'" class="text-primary hover:text-primary/80">View All</a>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <template x-for="offer in specialOffers.slice(0, 3)" :key="offer.id">
+                                <div class="offer-card bg-white dark:bg-dark-800 overflow-hidden shadow-md">
+                                    <div class="p-5">
+                                        <div class="flex items-center mb-4">
+                                            <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 mr-3">
+                                                <i class="text-xl" :class="offer.icon"></i>
+                                            </div>
+                                            <h3 class="text-lg font-bold text-gray-900 dark:text-white" x-text="offer.title"></h3>
+                                        </div>
+                                        <p class="text-gray-600 dark:text-gray-300 mb-4" x-text="offer.description"></p>
+                                        <div class="flex justify-between items-center">
+                                            <span class="text-primary font-bold" x-text="offer.amount"></span>
+                                            <span class="text-sm text-gray-500" x-text="'Until ' + offer.deadline"></span>
+                                        </div>
+                                    </div>
+                                    <div class="bg-gray-50 dark:bg-dark-700 px-5 py-3">
+                                        <button @click="loanApplicationOpen = true" class="w-full text-center bg-primary hover:bg-primary/90 text-white py-2 rounded-lg">
+                                            Apply Now
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- My Loans View -->
+                <div x-show="currentView === 'loans'" x-cloak>
+                    <div class="mb-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">My Loans</h2>
+                        <div class="flex space-x-3">
+                            <select x-model="loanStatusFilter" title="Filter loans by status" class="border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                <option value="all">All Loans</option>
+                                <option value="active">Active</option>
+                                <option value="pending">Pending</option>
+                                <option value="overdue">Overdue</option>
+                                <option value="repaid">Repaid</option>
+                            </select>
+                            <button @click="loanApplicationOpen = true" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center">
+                                <i class="fa-solid fa-plus mr-2"></i> Apply Now
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card bg-white dark:bg-dark-800 rounded-xl shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <thead class="bg-gray-50 dark:bg-dark-700">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan ID</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Disbursed</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Due Date</th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Progress</th>
+                                        <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white dark:bg-dark-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                    <template x-for="loan in loans" :key="loan.id">
+                                        <template x-if="loanStatusFilter === 'all' || loan.status === loanStatusFilter">
+                                            <tr class="table-row">
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white" x-text="loan.id"></td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white" x-text="loan.amount"></td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <template x-if="loan.status === 'active'">
+                                                        <span class="status-badge bg-blue-100 text-blue-800">Active</span>
+                                                    </template>
+                                                    <template x-if="loan.status === 'pending'">
+                                                        <span class="status-badge bg-yellow-100 text-yellow-800">Pending</span>
+                                                    </template>
+                                                    <template x-if="loan.status === 'overdue'">
+                                                        <span class="status-badge bg-red-100 text-red-800">Overdue</span>
+                                                    </template>
+                                                    <template x-if="loan.status === 'repaid'">
+                                                        <span class="status-badge bg-green-100 text-green-800">Repaid</span>
+                                                    </template>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="loan.disbursed"></td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400" x-text="loan.due"></td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <div class="flex items-center">
+                                                        <div class="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2 mr-2">
+                                                            <div class="bg-primary h-2 rounded-full" :style="'width: ' + loan.paid + '%'"></div>
+                                                        </div>
+                                                        <span class="text-xs text-gray-500" x-text="loan.paid + '%'"></span>
+                                                    </div>
+                                                </td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                                    <button @click="showPaymentModal = true; paymentAmount = loan.nextPayment" class="text-green-500 hover:text-green-700 mr-2">
+                                                        <i class="fa-solid fa-money-bill-wave"></i>
+                                                    </button>
+                                                    <button class="text-primary hover:text-primary/80">
+                                                        <i class="fa-solid fa-eye"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Loan Summary -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
+                        <div class="card bg-white dark:bg-dark-800 p-5 rounded-xl shadow-sm text-center">
+                            <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="loans.length"></div>
+                            <div class="text-sm text-gray-500">Total Loans</div>
+                        </div>
+                        <div class="card bg-white dark:bg-dark-800 p-5 rounded-xl shadow-sm text-center">
+                            <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="loans.filter(l => l.status === 'active').length"></div>
+                            <div class="text-sm text-gray-500">Active Loans</div>
+                        </div>
+                        <div class="card bg-white dark:bg-dark-800 p-5 rounded-xl shadow-sm text-center">
+                            <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="loans.filter(l => l.status === 'repaid').length"></div>
+                            <div class="text-sm text-gray-500">Repaid Loans</div>
+                        </div>
+                        <div class="card bg-white dark:bg-dark-800 p-5 rounded-xl shadow-sm text-center">
+                            <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="loans.filter(l => l.status === 'overdue').length"></div>
+                            <div class="text-sm text-gray-500">Overdue Loans</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Payback View -->
+                <div x-show="currentView === 'payback'" x-cloak>
+                    <div class="mb-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Make a Payment</h2>
+                        <button @click="showPaymentModal = true" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg flex items-center">
+                            <i class="fa-solid fa-money-bill-wave mr-2"></i> Pay Now
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2">
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm mb-6">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Methods</h3>
+                                <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                    <template x-for="method in paymentMethods" :key="method.id">
+                                        <button @click="paymentMethod = method.name" :class="{'border-primary bg-primary/10': paymentMethod === method.name}" class="flex flex-col items-center p-4 border border-gray-300 dark:border-gray-700 rounded-lg hover:border-primary">
+                                            <i :class="method.icon + ' text-2xl mb-2'" :class="{'text-primary': paymentMethod === method.name}"></i>
+                                            <span x-text="method.name"></span>
+                                        </button>
+                                    </template>
+                                </div>
+                            </div>
+                            
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Payments</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                        <thead class="bg-gray-50 dark:bg-dark-700">
+                                            <tr>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Method</th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Loan ID</th>
+                                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="bg-white dark:bg-dark-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                            <tr class="table-row">
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">2023-08-15</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">MK15,000</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">Airtel Money</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">L-10245</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="status-badge bg-green-100 text-green-800">Completed</span>
+                                                </td>
+                                            </tr>
+                                            <tr class="table-row">
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">2023-07-30</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">MK22,500</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">Bank Transfer</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">L-10247</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="status-badge bg-green-100 text-green-800">Completed</span>
+                                                </td>
+                                            </tr>
+                                            <tr class="table-row">
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">2023-07-01</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">MK7,500</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">TNM Mpamba</td>
+                                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">L-10246</td>
+                                                <td class="px-6 py-4 whitespace-nowrap">
+                                                    <span class="status-badge bg-green-100 text-green-800">Completed</span>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Payment Instructions</h3>
+                                <div class="space-y-4">
+                                    <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                                        <h4 class="font-bold text-gray-900 dark:text-white mb-2">Airtel Money</h4>
+                                        <ol class="list-decimal pl-5 space-y-1 text-sm">
+                                            <li>Dial *211#</li>
+                                            <li>Select "Pay Bill"</li>
+                                            <li>Enter Business Number: 123456</li>
+                                            <li>Enter Amount</li>
+                                            <li>Enter your PIN to confirm</li>
+                                        </ol>
+                                    </div>
+                                    
+                                    <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                                        <h4 class="font-bold text-gray-900 dark:text-white mb-2">TNM Mpamba</h4>
+                                        <ol class="list-decimal pl-5 space-y-1 text-sm">
+                                            <li>Dial *444#</li>
+                                            <li>Select "Payments"</li>
+                                            <li>Select "Pay Bill"</li>
+                                            <li>Enter Business Number: 789012</li>
+                                            <li>Enter Amount</li>
+                                            <li>Confirm with your PIN</li>
+                                        </ol>
+                                    </div>
+                                    
+                                    <div class="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                                        <h4 class="font-bold text-gray-900 dark:text-white mb-2">Bank Transfer</h4>
+                                        <p class="text-sm">
+                                            Account Name: CrediTrack Malawi<br>
+                                            Account Number: 1234567890<br>
+                                            Bank: National Bank of Malawi<br>
+                                            Branch: Lilongwe City Centre<br>
+                                            Reference: Your Loan ID
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Special Offers View -->
+                <div x-show="currentView === 'offers'" x-cloak>
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">Special Loan Offers</h2>
+                        <p class="text-gray-500 dark:text-gray-400 mt-2">Exclusive deals tailored for you</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <template x-for="offer in specialOffers" :key="offer.id">
+                            <div class="offer-card bg-white dark:bg-dark-800 overflow-hidden shadow-lg">
+                                <div class="p-6">
+                                    <div class="flex items-center mb-4">
+                                        <div class="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 mr-3">
+                                            <i class="text-xl" :class="offer.icon"></i>
+                                        </div>
+                                        <h3 class="text-xl font-bold text-gray-900 dark:text-white" x-text="offer.title"></h3>
+                                    </div>
+                                    <p class="text-gray-600 dark:text-gray-300 mb-4" x-text="offer.description"></p>
+                                    <div class="flex justify-between items-center mb-4">
+                                        <div>
+                                            <div class="font-bold text-primary" x-text="offer.amount"></div>
+                                            <div class="text-sm text-gray-500">Max Loan Amount</div>
+                                        </div>
+                                        <div class="text-right">
+                                            <div class="font-bold" x-text="'Until ' + offer.deadline"></div>
+                                            <div class="text-sm text-gray-500">Offer Expires</div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-gray-100 dark:bg-dark-700 p-3 rounded-lg mb-4">
+                                        <div class="flex justify-between text-sm mb-1">
+                                            <span>Interest Rate</span>
+                                            <span class="font-bold">12%</span>
+                                        </div>
+                                        <div class="flex justify-between text-sm">
+                                            <span>Processing Fee</span>
+                                            <span class="font-bold">1.5%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 dark:bg-dark-700 px-6 py-4 flex justify-between items-center">
+                                    <span class="text-sm text-gray-500" x-text="offer.deadline + ' deadline'"></span>
+                                    <button @click="loanApplicationOpen = true" class="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg">
+                                        Apply Now
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+                
+                <!-- Profile View -->
+                <div x-show="currentView === 'profile'" x-cloak>
+                    <div class="mb-6 flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">My Profile</h2>
+                        <button @click="profileEditMode = !profileEditMode" class="text-primary hover:text-primary/80" title="Edit or cancel profile editing">
+                            <template x-if="!profileEditMode">
+                                <span><i class="fa-solid fa-pen mr-1"></i> Edit Profile</span>
+                            </template>
+                            <template x-if="profileEditMode">
+                                <span>Cancel Editing</span>
+                            </template>
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2">
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Personal Information</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.name"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <input type="text" x-model="userProfile.name" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        </template>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.phone"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <input type="text" x-model="userProfile.phone" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        </template>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.email"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <input type="email" x-model="userProfile.email" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        </template>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Occupation</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.occupation"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <input type="text" x-model="userProfile.occupation" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        </template>
+                                    </div>
+                                    
+                                    <div class="md:col-span-2">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.address"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <textarea x-model="userProfile.address" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white"></textarea>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mt-6 mb-4">Identification</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ID Type</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.idType"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <select x-model="userProfile.idType" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                                <option>National ID</option>
+                                                <option>Passport</option>
+                                                <option>Driver's License</option>
+                                            </select>
+                                        </template>
+                                    </div>
+                                    
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ID Number</label>
+                                        <template x-if="!profileEditMode">
+                                            <div class="p-2 rounded border border-transparent" x-text="userProfile.idNumber"></div>
+                                        </template>
+                                        <template x-if="profileEditMode">
+                                            <input type="text" x-model="userProfile.idNumber" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-6" x-show="profileEditMode">
+                                    <button class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg">
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm mb-6">
+                                <div class="flex flex-col items-center">
+                                    <img class="w-24 h-24 rounded-full mb-4" src="https://ui-avatars.com/api/?name=John+Banda&background=4361ee&color=fff" alt="John Banda">
+                                    <h3 class="text-xl font-bold text-gray-900 dark:text-white" x-text="userProfile.name"></h3>
+                                    <p class="text-gray-500 dark:text-gray-400" x-text="userProfile.occupation"></p>
+                                </div>
+                                
+                                <div class="mt-6 space-y-3">
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600 dark:text-gray-300">Member Since</span>
+                                        <span class="font-medium">Jan 2022</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600 dark:text-gray-300">Total Loans</span>
+                                        <span class="font-medium" x-text="loans.length"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600 dark:text-gray-300">Completed Loans</span>
+                                        <span class="font-medium" x-text="loans.filter(l => l.status === 'repaid').length"></span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span class="text-gray-600 dark:text-gray-300">Credit Score</span>
+                                        <span class="font-bold text-green-600" x-text="userProfile.creditScore"></span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card bg-white dark:bg-dark-800 p-6 rounded-xl shadow-sm">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Security</h3>
+                                <div class="space-y-4">
+                                    <button class="w-full flex items-center justify-between p-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-700">
+                                        <span>Change Password</span>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                    <button class="w-full flex items-center justify-between p-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-700">
+                                        <span>Two-Factor Authentication</span>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                    <button class="w-full flex items-center justify-between p-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-700">
+                                        <span>Login History</span>
+                                        <i class="fa-solid fa-chevron-right"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Loan Application Modal -->
+    <div x-show="loanApplicationOpen" x-cloak class="fixed z-50 inset-0 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div class="absolute inset-0 bg-gray-500 opacity-75" @click="loanApplicationOpen = false"></div>
+            </div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white dark:bg-dark-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white dark:bg-dark-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
+                                Apply for New Loan
+                            </h3>
+                            <div class="mt-2 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Loan Amount (MK)</label>
+                                    <input type="number" x-model="loanAmount" title="Enter loan amount" placeholder="Enter loan amount" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Loan Term (months)</label>
+                                    <select x-model="loanTerm" title="Select loan term" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        <option value="1">1 month</option>
+                                        <option value="3">3 months</option>
+                                        <option value="6">6 months</option>
+                                        <option value="12">12 months</option>
+                                        <option value="24">24 months</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Loan Purpose</label>
+                                    <select x-model="loanPurpose" title="Select loan purpose" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                        <option>Business</option>
+                                        <option>Education</option>
+                                        <option>Medical</option>
+                                        <option>Personal</option>
+                                        <option>Agriculture</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="bg-gray-50 dark:bg-dark-700 p-4 rounded-lg">
+                                    <h4 class="font-medium text-gray-900 dark:text-white mb-2">Loan Summary</h4>
+                                    <div class="space-y-2 text-sm">
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-300">Amount:</span>
+                                            <span x-text="'MK' + loanAmount.toLocaleString()"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-300">Term:</span>
+                                            <span x-text="loanTerm + ' months'"></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-300">Interest Rate:</span>
+                                            <span x-text="
+                                                loanTerm <= 3 ? '12%' :
+                                                loanTerm <= 6 ? '15%' :
+                                                loanTerm <= 12 ? '18%' : '20%'
+                                            "></span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-gray-600 dark:text-gray-300">Monthly Payment:</span>
+                                            <span x-text="
+                                                'MK' + Math.round(
+                                                    (loanAmount + 
+                                                     (loanAmount * 
+                                                      (loanTerm <= 3 ? 0.12 :
+                                                       loanTerm <= 6 ? 0.15 :
+                                                       loanTerm <= 12 ? 0.18 : 0.20) * 
+                                                      (loanTerm / 12))) / loanTerm
+                                                ).toLocaleString()
+                                            "></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-dark-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:ml-3 sm:w-auto sm:text-sm">
+                        Submit Application
+                    </button>
+                    <button type="button" @click="loanApplicationOpen = false" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-dark-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div x-show="showPaymentModal" x-cloak class="fixed z-50 inset-0 overflow-y-auto">
+        <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div class="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div class="absolute inset-0 bg-gray-500 opacity-75" @click="showPaymentModal = false"></div>
+            </div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white dark:bg-dark-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white dark:bg-dark-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <div class="sm:flex sm:items-start">
+                        <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-white mb-4">
+                                Make Payment
+                            </h3>
+                            <div class="mt-2 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount (MK)</label>
+                                    <input type="text" x-model="paymentAmount" placeholder="Enter amount" title="Enter payment amount" class="w-full border border-gray-300 dark:border-gray-700 rounded-lg py-2 px-4 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent dark:bg-dark-700 dark:text-white">
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <template x-for="method in paymentMethods" :key="method.id">
+                                            <button @click="paymentMethod = method.name" :class="{'border-primary bg-primary/10': paymentMethod === method.name}" class="flex items-center p-3 border border-gray-300 dark:border-gray-700 rounded-lg hover:border-primary">
+                                                <i :class="method.icon + ' mr-2'" :class="{'text-primary': paymentMethod === method.name}"></i>
+                                                <span x-text="method.name"></span>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </div>
+                                
+                                <div x-show="paymentMethod === 'Airtel Money' || paymentMethod === 'TNM Mpamba'" class="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                                    <p>To complete payment via <span x-text="paymentMethod"></span>:</p>
+                                    <ol class="list-decimal pl-5 mt-1 space-y-1">
+                                        <li>Dial *<span x-text="paymentMethod === 'Airtel Money' ? '211#' : '444#'"></span> on your phone</li>
+                                        <li>Select "Pay Bill"</li>
+                                        <li>Enter Business Number: 123456</li>
+                                        <li>Enter Amount: <span x-text="'MK' + paymentAmount"></span></li>
+                                        <li>Enter Reference: <span x-text="'CR' + Math.floor(Math.random() * 10000)"></span></li>
+                                        <li>Enter your PIN to confirm</li>
+                                    </ol>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 dark:bg-dark-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-primary text-base font-medium text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:ml-3 sm:w-auto sm:text-sm">
+                        Confirm Payment
+                    </button>
+                    <button type="button" @click="showPaymentModal = false" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-dark-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize charts
+        document.addEventListener('DOMContentLoaded', function() {
+            // Payment Schedule Chart
+            const paymentCtx = document.getElementById('paymentChart').getContext('2d');
+            const paymentChart = new Chart(paymentCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                    datasets: [{
+                        label: 'Payment Amount (MK)',
+                        data: [15000, 15000, 15000, 15000, 15000, 15000, 15000],
+                        backgroundColor: '#4361ee',
+                        borderWidth: 0,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                            padding: 10,
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    return 'MK' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return 'MK' + value.toLocaleString();
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
